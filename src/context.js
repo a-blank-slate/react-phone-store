@@ -1,166 +1,174 @@
 import React, { Component } from "react";
-import items from "./data";
+import { storeProducts, detailProduct } from "./data";
+const ProductContext = React.createContext();
 
-const RoomContext = React.createContext();
-
-export default class RoomProvider extends Component {
+class ProductProvider extends Component {
   state = {
-    rooms: [],
-    sortedRooms: [],
-    featuredRooms: [],
-    loading: true,
-    //
-    type: "all",
-    capacity: 1,
-    price: 0,
-    minPrice: 0,
-    maxPrice: 0,
-    minSize: 0,
-    maxSize: 0,
-    breakfast: false,
-    pets: false
+    products: [],
+    detailProduct,
+    cart: [],
+    modelOpen: true,
+    modalProduct: detailProduct,
+    cartSubtotal: 0,
+    cartTax: 0,
+    cartTotal: 0,
   };
-
-  // getData = async () => {
-  //   try {
-  //     let response = await Client.getEntries({
-  //       content_type: "resortBeachData"
-  //     });
-  //     let rooms = this.formatData(response.items);
-
-  //     let featuredRooms = rooms.filter(room => room.featured === true);
-  //     //
-  //     let maxPrice = Math.max(...rooms.map(item => item.price));
-  //     let maxSize = Math.max(...rooms.map(item => item.size));
-  //     this.setState({
-  //       rooms,
-  //       featuredRooms,
-  //       sortedRooms: rooms,
-  //       loading: false,
-  //       //
-  //       price: maxPrice,
-  //       maxPrice,
-  //       maxSize
-  //     });
-  //   } catch (error) {
-  //     console.log(error);
-  //   }
-  // };
-
   componentDidMount() {
-    //this.getData();
-    let rooms = this.formatData(items);
-    let featuredRooms = rooms.filter(room => room.featured === true);
-    //
-    let maxPrice = Math.max(...rooms.map(item => item.price));
-    let maxSize = Math.max(...rooms.map(item => item.size));
-    this.setState({
-      rooms,
-      featuredRooms,
-      sortedRooms: rooms,
-      loading: false,
-      //
-      price: maxPrice,
-      maxPrice,
-      maxSize
-    });
+    this.setProducts();
   }
-
-  formatData(items) {
-    let tempItems = items.map(item => {
-      let id = item.sys.id;
-      let images = item.fields.images.map(image => image.fields.file.url);
-
-      let room = { ...item.fields, images, id };
-      return room;
+  setProducts = () => {
+    let products = [];
+    storeProducts.forEach((item) => {
+      const singleItem = { ...item };
+      products = [...products, singleItem];
     });
-    return tempItems;
-  }
-  getRoom = slug => {
-    let tempRooms = [...this.state.rooms];
-    const room = tempRooms.find(room => room.slug === slug);
-    return room;
+    this.setState(() => {
+      return { products };
+    });
   };
-  handleChange = event => {
-    const target = event.target;
-    const value = target.type === "checkbox" ? target.checked : target.value;
-    const name = target.name;
-    console.log(name, value);
-
+  getItem = (id) => {
+    const product = this.state.products.find((item) => item.id === id);
+    return product;
+  };
+  handleDetail = (id) => {
+    const product = this.getItem(id);
+    this.setState(() => {
+      return { detailProduct: product };
+    });
+  };
+  addToCart = (id) => {
+    let tempProduct = [...this.state.products];
+    const index = tempProduct.indexOf(this.getItem(id));
+    const product = tempProduct[index];
+    product.inCart = true;
+    product.count = 1;
+    product.total = product.price;
     this.setState(
-      {
-        [name]: value
+      () => {
+        return {
+          products: tempProduct,
+          cart: [...this.state.cart, product],
+        };
       },
-      this.filterRooms
+      () => {
+        this.addTotals();
+      }
     );
   };
-  filterRooms = () => {
-    let {
-      rooms,
-      type,
-      capacity,
-      price,
-      minSize,
-      maxSize,
-      breakfast,
-      pets
-    } = this.state;
-
-    let tempRooms = [...rooms];
-    // transform values
-    // get capacity
-    capacity = parseInt(capacity);
-    price = parseInt(price);
-    // filter by type
-    if (type !== "all") {
-      tempRooms = tempRooms.filter(room => room.type === type);
-    }
-    // filter by capacity
-    if (capacity !== 1) {
-      tempRooms = tempRooms.filter(room => room.capacity >= capacity);
-    }
-    // filter by price
-    tempRooms = tempRooms.filter(room => room.price <= price);
-    //filter by size
-    tempRooms = tempRooms.filter(
-      room => room.size >= minSize && room.size <= maxSize
+  openModal = (id) => {
+    const product = this.getItem(id);
+    this.setState(() => {
+      return { modalProduct: product, modalOpen: true };
+    });
+  };
+  closeModal = (id) => {
+    this.setState(() => {
+      return { modalOpen: false };
+    });
+  };
+  increment = (id) => {
+    let tempCart = [...this.state.cart];
+    let selectedProduct = tempCart.find((item) => item.id === id);
+    const index = tempCart.indexOf(selectedProduct);
+    let product = tempCart[index];
+    product.count += 1;
+    product.total = product.count * product.price;
+    this.setState(
+      () => {
+        return {
+          cart: [...tempCart],
+        };
+      },
+      () => {
+        this.addTotals();
+      }
     );
-    //filter by breakfast
-    if (breakfast) {
-      tempRooms = tempRooms.filter(room => room.breakfast === true);
+  };
+  decrement = (id) => {
+    let tempCart = [...this.state.cart];
+    let selectedProduct = tempCart.find((item) => item.id === id);
+    const index = tempCart.indexOf(selectedProduct);
+    let product = tempCart[index];
+    product.count -= 1;
+    if (product.count === 0) {
+      this.removeItem(id);
+    } else {
+      product.total = product.count * product.price;
+      this.setState(
+        () => {
+          return {
+            cart: [...tempCart],
+          };
+        },
+        () => {
+          this.addTotals();
+        }
+      );
     }
-    //filter by pets
-    if (pets) {
-      tempRooms = tempRooms.filter(room => room.pets === true);
-    }
-    this.setState({
-      sortedRooms: tempRooms
+  };
+  clearCart = () => {
+    this.setState(
+      () => {
+        return { cart: [] };
+      },
+      () => {
+        this.setProducts();
+        this.addTotals();
+      }
+    );
+  };
+  removeItem = (id) => {
+    let tempProducts = [...this.state.products];
+    let tempCart = [...this.state.cart];
+    tempCart = tempCart.filter((item) => item.id !== id);
+    const index = tempProducts.indexOf(this.getItem(id));
+    let removedProduct = tempProducts[index];
+    removedProduct.inCart = false;
+    removedProduct.count = 0;
+    removedProduct.total = 0;
+    this.setState(
+      () => {
+        return {
+          products: [...tempProducts],
+          cart: [...tempCart],
+        };
+      },
+      () => {
+        this.addTotals();
+      }
+    );
+  };
+  addTotals = () => {
+    let subtotal = 0;
+    this.state.cart.map((item) => (subtotal += item.total));
+    const subTax = subtotal * 0.1;
+    const tax = parseFloat(subTax.toFixed(2));
+    const total = subtotal + tax;
+    this.setState(() => {
+      return { cartSubtotal: subtotal, cartTax: tax, cartTotal: total };
     });
   };
   render() {
     return (
-      <RoomContext.Provider
+      <ProductContext.Provider
         value={{
           ...this.state,
-          getRoom: this.getRoom,
-          handleChange: this.handleChange
+          handleDetail: this.handleDetail,
+          addToCart: this.addToCart,
+          openModal: this.openModal,
+          closeModal: this.closeModal,
+          removeItem: this.removeItem,
+          increment: this.increment,
+          decrement: this.decrement,
+          clearCart: this.clearCart,
         }}
       >
         {this.props.children}
-      </RoomContext.Provider>
+      </ProductContext.Provider>
     );
   }
 }
-const RoomConsumer = RoomContext.Consumer;
 
-export { RoomProvider, RoomConsumer, RoomContext };
+const ProductConsumer = ProductContext.Consumer;
 
-export function withRoomConsumer(Component) {
-  return function ConsumerWrapper(props) {
-    return (
-      <RoomConsumer>
-        {value => <Component {...props} context={value} />}
-      </RoomConsumer>
-    );
-  };
-}
+export { ProductConsumer, ProductProvider };
